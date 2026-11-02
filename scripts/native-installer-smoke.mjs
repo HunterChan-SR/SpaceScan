@@ -35,6 +35,23 @@ let installed = false;
 let executable;
 let evidence;
 let verifiedUninstall = false;
+// dpkg alone does not install declared dependencies (for example libnotify4).
+// Install the local package through apt, as users normally do.
+async function aptInstall(extra = []) {
+  await exec(
+    "sudo",
+    [
+      "env",
+      "DEBIAN_FRONTEND=noninteractive",
+      "apt-get",
+      "install",
+      "-y",
+      ...extra,
+      artifact,
+    ],
+    { timeout: 300000 },
+  );
+}
 async function waitUntilRemoved(file) {
   for (let attempt = 0; attempt < 20; attempt++) {
     try {
@@ -54,7 +71,7 @@ try {
     await exec(artifact, ["/S", `/D=${directory}`], { timeout: 120000 });
     executable = path.join(directory, "SpaceScan.exe");
   } else {
-    await exec("sudo", ["dpkg", "--install", artifact], { timeout: 120000 });
+    await aptInstall();
     const { stdout } = await exec("dpkg", ["--listfiles", "spacescan"]);
     executable = stdout
       .split("\n")
@@ -68,7 +85,7 @@ try {
   // that fail over an existing installation without claiming cross-version migration.
   if (windows)
     await exec(artifact, ["/S", `/D=${directory}`], { timeout: 120000 });
-  else await exec("sudo", ["dpkg", "--install", artifact], { timeout: 120000 });
+  else await aptInstall(["--reinstall"]);
   const code = await new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,

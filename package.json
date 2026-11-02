@@ -5,6 +5,7 @@
   "private": true,
   "type": "module",
   "description": "See your space. A local-first disk explorer for macOS, Windows and Linux.",
+  "homepage": "https://github.com/HunterChan-SR/SpaceScan",
   "author": "SpaceScan contributors",
   "license": "MIT",
   "dependencies": {

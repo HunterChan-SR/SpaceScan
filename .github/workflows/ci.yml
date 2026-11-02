@@ -25,8 +25,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -68,10 +68,11 @@ jobs:
       - name: Linux AppImage launcher check
         if: runner.os == 'Linux'
         run: xvfb-run --auto-servernum node scripts/portable-smoke.mjs
-      - uses: actions/upload-artifact@v4
+      - name: Upload installers
         if: always()
+        uses: actions/upload-artifact@v7
         with:
-          name: spacescan-${{ runner.os }}-${{ matrix.arch }}
+          name: installers-${{ runner.os }}-${{ matrix.arch }}
           path: |
             release/test/*.dmg
             release/test/*.zip
@@ -79,9 +80,74 @@ jobs:
             release/test/*.AppImage
             release/test/*.deb
             release/test/SHA256SUMS.txt
+          retention-days: 14
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: evidence-${{ runner.os }}-${{ matrix.arch }}
+          path: |
             playwright-report/
             test-results/
             playwright-report-packaged/
             test-results-packaged/
             test-results-evidence/
           retention-days: 14
+  release:
+    name: Publish GitHub release
+    # Push a tag that matches package.json, e.g. v0.1.0, after main is green.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: desktop
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check tag matches package version
+        run: |
+          expected="v$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $expected."
+            exit 1
+          fi
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: installers-*
+          path: release-assets
+          merge-multiple: true
+      - name: Combine checksums
+        working-directory: release-assets
+        run: |
+          rm -f SHA256SUMS.txt
+          sha256sum -- * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          for pattern in '*-mac-arm64.dmg' '*-mac-arm64.zip' '*-mac-x64.dmg' '*-mac-x64.zip' \
+            '*-win-x64-setup.exe' '*-win-x64-portable.exe' '*.AppImage' '*.deb'; do
+            compgen -G "$pattern" > /dev/null || { echo "::error::Missing release asset $pattern"; exit 1; }
+          done
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<'EOF'
+          **未签名测试版 / Unsigned test build.** CI 已在 macOS (Apple 芯片、Intel)、Windows x64、Linux x64 上完成单元、桌面、安装包测试。
+
+          | 平台 Platform | 下载 Download |
+          |---|---|
+          | macOS Apple 芯片 | `mac-arm64.dmg` |
+          | macOS Intel | `mac-x64.dmg` |
+          | Windows x64 | `win-x64-setup.exe`（安装版 installer）/ `win-x64-portable.exe`（便携版 portable） |
+          | Linux x64 | `.AppImage`（需要 FUSE 2）/ `.deb`（`sudo apt install ./文件名.deb`） |
+
+          这些安装包没有发布者签名，也没有 Apple 公证 / Not publisher-signed or notarized:
+          - macOS：首次打开被拦截时，到“系统设置 → 隐私与安全性”点“仍要打开”。Use System Settings → Privacy & Security → Open Anyway.
+          - Windows：SmartScreen 提示时点“更多信息 → 仍要运行”。Choose More info → Run anyway.
+
+          用 `SHA256SUMS.txt` 校验下载文件 / Verify downloads with `SHA256SUMS.txt`.
+          EOF
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release-assets/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release-assets/* --verify-tag --prerelease \
+              --title "SpaceScan $GITHUB_REF_NAME" --notes-file notes.md
+          fi

@@ -2,7 +2,7 @@
 
 ## Current state — 2026-11-02
 
-SpaceScan has working test packages for macOS, Windows and Linux. **It is not yet approved for a public release:** native Windows/Linux runtime and installer checks, publisher metadata and release signing/notarization remain outstanding. The full three-platform objective is retained; completion depends on the external release gates below.
+SpaceScan has working test packages for macOS, Windows and Linux. **It is not yet approved for a signed public release:** some native Windows/Linux launcher and installer checks, publisher identity and release signing/notarization remain outstanding. Unsigned test builds can be published as GitHub prereleases (see RELEASING.md). The full three-platform objective is retained; completion depends on the external release gates below.
 
 Host: macOS 26.4.1 arm64, Node 24.17.0. Pinned tools: Electron 45.2.1, TypeScript 7.0.2, Vite 8.3.5, Playwright 1.64.1, electron-builder 26.18.0. The older cached Electron 33 preview was used only for initial development; current tests use 45.2.1.
 
@@ -34,15 +34,21 @@ These are warm-cache fixtures on this Mac, not promises for other disks:
 
 ## Remaining release gates
 
-1. Supply the intended repository URL/hosting destination and run the checked-in CI on native Windows and Linux. Windows installer, portable app, Linux AppImage and Debian installation/launch must actually be exercised. Their successful cross-builds on macOS do not prove runtime compatibility.
-2. Run macOS x64 on a native Intel runner; the current x64 evidence is Rosetta-based.
-3. Set actual project homepage and publisher identity. Configure Developer ID/notarization and Windows signing, then verify the final public artifacts including normal Gatekeeper/Windows behavior. Do not remove quarantine or disable OS protection to claim success.
+1. Native Windows/Linux CI: the Windows NSIS installer and the unpacked Windows/Linux apps have passed (see CI evidence). The Windows portable launch, Debian installation and Linux AppImage checks must pass in the latest run. Successful cross-builds on macOS do not prove runtime compatibility.
+2. ~~Run macOS x64 on a native Intel runner.~~ Passed on `macos-15-intel` in CI.
+3. The project homepage is set to the GitHub repository. Set the publisher identity. Configure Developer ID/notarization and Windows signing, then verify the final public artifacts including normal Gatekeeper/Windows behavior. Do not remove quarantine or disable OS protection to claim success.
 4. Confirm update-in-place, uninstall and recovery behaviors in the actual native platform sessions. Retain test reports matching final artifact hashes.
 
-GitHub was discovered as an available integration but has not been confirmed connected. No remote repository, public upload or CI execution has occurred. A repository question is pending. The initial dependency-download blockage is resolved through the available authorized package execution route; the user does not need to run the earlier installation command.
+## CI evidence — 2026-11-02
+
+The repository is hosted at https://github.com/HunterChan-SR/SpaceScan and its CI has run on GitHub-hosted runners. Run 41446281759 (commit `ca8be69`):
+
+- **macOS arm64 (`macos-latest`) and macOS Intel (`macos-15-intel`)**: every step passed, including core, desktop, packaged-app and DMG installation suites. The Intel job is native x64 evidence, replacing the earlier Rosetta-only result for gate 2.
+- **Windows x64**: core, desktop and packaged-app suites passed; the NSIS installer installed, reinstalled in place, passed the desktop suite and was uninstalled. The portable EXE check failed because Playwright's Electron launcher cannot attach through the NSIS portable wrapper (all tests timed out in setup). The check now launches the wrapper and verifies it over the Chromium debugging port.
+- **Linux x64 (Ubuntu 22.04)**: core, desktop and packaged-app suites passed. The Debian check failed because `dpkg --install` does not install the package's `libnotify4` dependency; it now installs through `apt-get`. The AppImage check did not run in that job.
+
+Check the latest workflow run before relying on the Windows portable, Debian and AppImage results.
 
 ## Latest environment recheck
 
-No Git remote is configured, no native Windows/Linux VM or runner tool is available, and no Developer ID Application identity was returned by the local signing-key inspection. The relevant signing/notarization environment variables are unset. The same native-platform/publisher gate has remained across three goal turns; local implementation, package generation and Mac verification cannot supply those missing external resources.
-
-CI now includes direct Windows portable/AppImage launch tests, same-version reinstall, and explicit uninstaller executable-removal checks. Their syntax and configuration have been checked locally; their Windows/Linux behavior is still unverified.
+No native Windows/Linux VM is available locally, and no Developer ID Application identity was returned by the local signing-key inspection. The relevant signing/notarization environment variables are unset. Publisher signing remains outstanding; GitHub test releases are unsigned prereleases.

@@ -1,0 +1,98 @@
+{
+  "name": "spacescan",
+  "desktopName": "spacescan.desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "See your space. A local-first disk explorer for macOS, Windows and Linux.",
+  "author": "SpaceScan contributors",
+  "license": "MIT",
+  "dependencies": {
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "lucide-react": "1.66.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "26.6.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "electron": "45.2.1",
+    "electron-builder": "26.18.0",
+    "esbuild": "0.28.2",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.5"
+  },
+  "main": "dist-electron/main.cjs",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "tsc --noEmit && node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "test:e2e": "npm run build && playwright test",
+    "test:packaged": "playwright test --config playwright.packaged.config.ts",
+    "test:dmg": "node scripts/macos-dmg-smoke.mjs",
+    "benchmark": "node --import tsx scripts/benchmark.ts",
+    "package": "npm run build && node scripts/package.mjs",
+    "package:dir": "npm run build && node scripts/package.mjs --dir",
+    "package:release": "npm run build && node scripts/package.mjs --release",
+    "verify": "npm run typecheck && npm test && npm run test:e2e"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "build": {
+    "appId": "app.spacescan.desktop",
+    "productName": "SpaceScan",
+    "copyright": "Copyright © 2026 SpaceScan contributors",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json",
+      "LICENSE",
+      "THIRD_PARTY_NOTICES.txt"
+    ],
+    "asar": true,
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "artifactName": "${productName}-${version}-win-${arch}-setup.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-win-${arch}-portable.${ext}"
+    },
+    "linux": {
+      "syncDesktopName": true,
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility",
+      "maintainer": "SpaceScan contributors"
+    }
+  }
+}

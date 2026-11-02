@@ -1,0 +1,87 @@
+name: Verify and build desktop apps
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: spacescan-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            arch: x64
+          - os: ubuntu-22.04
+            arch: x64
+          - os: macos-15-intel
+            arch: x64
+          - os: macos-latest
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Linux desktop dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libfuse2 xvfb libgtk-3-0 libnss3 libasound2
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Desktop integration tests (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum npx playwright test
+      - name: Desktop integration tests (macOS / Windows)
+        if: runner.os != 'Linux'
+        run: npx playwright test
+      - name: Package test installers
+        run: node scripts/package.mjs --${{ matrix.arch }}
+      - name: Hash installers
+        run: node scripts/checksums.mjs release/test
+      - name: Packaged app tests (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum npm run test:packaged
+      - name: Packaged app tests (macOS / Windows)
+        if: runner.os != 'Linux'
+        run: npm run test:packaged
+      - name: DMG installation check
+        if: runner.os == 'macOS'
+        run: npm run test:dmg
+      - name: Windows installer check
+        if: runner.os == 'Windows'
+        run: node scripts/native-installer-smoke.mjs
+      - name: Debian installer check
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum node scripts/native-installer-smoke.mjs
+      - name: Windows portable launcher check
+        if: runner.os == 'Windows'
+        run: node scripts/portable-smoke.mjs
+      - name: Linux AppImage launcher check
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum node scripts/portable-smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spacescan-${{ runner.os }}-${{ matrix.arch }}
+          path: |
+            release/test/*.dmg
+            release/test/*.zip
+            release/test/*.exe
+            release/test/*.AppImage
+            release/test/*.deb
+            release/test/SHA256SUMS.txt
+            playwright-report/
+            test-results/
+            playwright-report-packaged/
+            test-results-packaged/
+            test-results-evidence/
+          retention-days: 14

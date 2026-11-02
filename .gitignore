@@ -1,0 +1,15 @@
+node_modules/
+dist/
+dist-electron/
+release/
+test-results/
+playwright-report/
+test-results-packaged/
+test-results-evidence/
+playwright-report-packaged/
+.DS_Store
+*.log
+.env*
+!.env.example
+coverage/
+.benchmark/
